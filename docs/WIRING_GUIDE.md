@@ -53,23 +53,29 @@ The two ESP32 boards communicate over serial or GPIO handshake (determined by fi
                     │   (Converts 220V → 12V)  │
                     └────────┬──────────┬──────┘
                              │          │
-                    ┌────────▼──┐  ┌─────▼────────┐
-                    │ LM2596S #1│  │  LM2596S #2  │
-                    │ (Set 5V)  │  │  (Set 5V)    │
-                    └─────┬─────┘  └──────┬───────┘
-                          │               │
-                    ┌─────▼─────┐   ┌─────▼────────┐
-                    │ ESP32 #1  │   │  ESP32 #2    │
-                    │ (Main)    │   │  (Dispenser) │
-                    └─────┬─────┘   └──────┬───────┘
-                          │                │
-                    ┌─────┴─────┐    ┌─────┴──────────┐
-                    │ LCD       │    │  Buzzer        │
-                    │ MPU6050   │    │  SSR → Hopper  │
-                    │ Buttons   │    │                │
-                    │ Bill Acc. │    │                │
-                    │ Coin Slot │    │                │
-                    └───────────┘    └────────────────┘
+                    ┌────────▼───────────┐
+                    │    LM2596S         │
+                    │   (Set to 5.0V)    │
+                    └────────┬───────────┘
+                             │
+                    ┌────────┴───────────┐
+                    │   5V Rail ─────────┤
+                    │ (shared by both    │
+                    │  ESP32s + LCD)     │
+                    └────────┬───────────┘
+                             │
+               ┌─────────────┼─────────────┐
+               │             │             │
+          ┌────▼────┐  ┌────▼──────┐      │
+          │ ESP32   │  │ ESP32     │      │
+          │ #1 Main │  │ #2 Disp.  │      │
+          └────┬────┘  └────┬──────┘      │
+               │            │             │
+     ┌─────────┼────────┐  │    ┌────────┼────────┐
+     │ LCD     │ MPU6050│  │    │ Buzzer │ SSR ───┤
+     │ Buttons │Bill Acc│  │    │→Hopper │        │
+     │Coin Slot│        │  │    │        │        │
+     └─────────┴────────┘  │    └────────┴────────┘
 ```
 
 ---
@@ -89,7 +95,7 @@ The two ESP32 boards communicate over serial or GPIO handshake (determined by fi
 | 9 | Solid State Relay (SSR) | 1 | Switches 220VAC to hopper | ESP32 #2 (control) + 220VAC |
 | 10 | Allan Coin Hopper | 1 | Dispenses coins | SSR + 220VAC |
 | 11 | 12V SMPS PSU | 1 | System power supply | 220VAC → 12V |
-| 12 | LM2596S Buck Converter | 2 | 12V → 5V for each ESP32 | PSU → ESP32 VIN |
+|| 12 | LM2596S Buck Converter | 1 | 12V → 5V for both ESP32s | PSU → Both ESP32 VIN (parallel) |
 | — | Jumper wires, screw terminals, heat shrink | — | Interconnections | — |
 
 ---
@@ -131,36 +137,47 @@ The two ESP32 boards communicate over serial or GPIO handshake (determined by fi
                                      │
                     ┌────────────────┼─────────────────┐
                     │                │                  │
-           ┌────────▼────────┐  ┌───▼──────────┐    ┌──▼──────────────┐
-           │  LM2596S #1     │  │  LM2596S #2  │    │  12V Peripherals │
-           │  (ESP32 #1 PSU) │  │  (ESP32 #2)  │    │  ──────────────  │
-           │  Set ▼ to 5.0V  │  │  Set ▼ 5.0V  │    │  TB74 (Red)     │
-           └────────┬────────┘  └───┬──────────┘    │  Allan Coin Slot │
-                    │               │                │  (+12V wire)     │
-              ┌─────▼─────┐   ┌────▼─────┐          └──────────────────┘
-              │ ESP32 #1  │   │ ESP32 #2 │
-              │ VIN: +5V  │   │ VIN: +5V │
-              │ GND: GND  │   │ GND: GND │
-              └───────────┘   └──────────┘
+           ┌────────▼───────────┐
+           │    LM2596S          │
+           │  (Set ▼ to 5.0V)   │
+           └────────┬───────────┘
+                    │
+           ┌────────┴───────────┐
+           │  5V Rail (shared)  │
+           │  ───────────────── │
+           │  ESP32 #1 VIN      │
+           │  ESP32 #2 VIN      │
+           │  LCD VCC           │
+           └────────┬───────────┘
+                    │
+           ┌────────┴────────────┐
+           │  12V Peripherals    │
+           │  ──────────────     │
+           │  TB74 (Red)         │
+           │  Allan Coin Slot    │
+           │  (+12V wire)        │
+           └─────────────────────┘
 ```
 
-### 4.2 LM2596S Buck Converter — Wiring (Repeat for Both ESP32s)
+### 4.2 LM2596S Buck Converter — Wiring (Single Module, Both ESP32s)
 
 | LM2596S Terminal | Connection |
 |:----------------:|------------|
 | **IN+**          | PSU +12V Output |
 | **IN−**          | PSU GND Output |
-| **OUT+**         | ESP32 **VIN** pin |
-| **OUT−**         | ESP32 **GND** pin |
+| **OUT+**         | ESP32 #1 **VIN** + ESP32 #2 **VIN** (wired in parallel) |
+| **OUT−**         | ESP32 #1 **GND** + ESP32 #2 **GND** (wired in parallel) |
 
-> **Adjustment:** Before connecting to the ESP32, power the LM2596S from the 12V PSU (no load on output) and adjust its trimmer potentiometer so the output measures **exactly 5.0V** between OUT+ and OUT−. Using a multimeter here is critical — too high a voltage can damage the ESP32.
+> Both ESP32s share the same 5V rail from one LM2596S. The LM2596S is rated for 3A — enough to power both boards (each ~200mA peak) plus the LCD (~50mA) with plenty of headroom.
+>
+> **Adjustment:** Before connecting to the ESP32s, power the LM2596S from the 12V PSU (no load on output) and adjust its trimmer potentiometer so the output measures **exactly 5.0V** between OUT+ and OUT−. Using a multimeter here is critical — too high a voltage can damage both ESP32s.
 
 ### 4.3 Power Connections Summary
 
 | Component | Voltage Source | Notes |
 |-----------|:-------------:|-------|
-| ESP32 #1 VIN | LM2596S #1 OUT | 5V regulated |
-| ESP32 #2 VIN | LM2596S #2 OUT | 5V regulated |
+| ESP32 #1 VIN | LM2596S OUT | 5V regulated (shared rail) |
+| ESP32 #2 VIN | LM2596S OUT | 5V regulated (same rail as #1) |
 | LCD VCC | ESP32 #1 VIN | 5V (pulled from board VIN) |
 | MPU6050 VCC | ESP32 #1 3.3V | 3.3V only! |
 | TB74 Red Wire | PSU +12V | Direct from 12V PSU output |
@@ -179,9 +196,9 @@ The two ESP32 boards communicate over serial or GPIO handshake (determined by fi
 
 | GPIO Pin | Connected To | Direction | Notes |
 |:--------:|-------------|:---------:|-------|
-| **VIN**  | LM2596S #1 OUT+ | Power IN | 5V input |
+| **VIN**  | LM2596S OUT+ | Power IN | 5V input (shared rail with ESP32 #2) |
 | **3.3V** | MPU6050 VCC | 3.3V OUT | Powers MPU6050 (do not use 5V!) |
-| **GND**  | LM2596S #1 OUT− | Power GND | System ground |
+| **GND**  | LM2596S OUT− | Power GND | System ground (shared with ESP32 #2) |
 | **GND**  | All peripheral GNDs | GND | Common ground plane |
 | **GPIO22** | LCD SDA + MPU6050 SDA | I²C Data | Shared bus |
 | **GPIO21** | LCD SCL + MPU6050 SCL | I²C Clock | Shared bus |
@@ -375,8 +392,8 @@ The Allan Coin Slot accepts coins and signals the ESP32 when a coin is deposited
 
 | GPIO Pin | Connected To | Direction | Notes |
 |:--------:|-------------|:---------:|-------|
-| **VIN**  | LM2596S #2 OUT+ | Power IN | 5V input |
-| **GND**  | LM2596S #2 OUT− | Power GND | System ground |
+| **VIN**  | LM2596S OUT+ | Power IN | 5V input (shared rail with ESP32 #1) |
+| **GND**  | LM2596S OUT− | Power GND | System ground (shared with ESP32 #1) |
 | **GPIO5** | Buzzer (+) | Output | Active HIGH to sound buzzer |
 | **TBD**   | SSR Control (+) | Output | **See §6.3 — TO BE VERIFIED** |
 | **GND**   | SSR Control (−) | GND | SSR control ground (share ESP32 GND) |
@@ -467,9 +484,9 @@ The SSR switches **one side of the AC line** (the Line / phase). When the SSR is
 ### 7.1 Power Flow
 
 ```
-220 VAC ──► 12V SMPS PSU ──┬──► LM2596S #1 ──► 5V ──► ESP32 #1 VIN
-                           │
-                           ├──► LM2596S #2 ──► 5V ──► ESP32 #2 VIN
+220 VAC ──► 12V SMPS PSU ──┬──► LM2596S ──► 5V ──┬──► ESP32 #1 VIN
+                           │                      │
+                           │                      └──► ESP32 #2 VIN
                            │
                            ├──► TB74 (Red wire) ── 12V ──► Bill Acceptor
                            │
@@ -480,7 +497,7 @@ The SSR switches **one side of the AC line** (the Line / phase). When the SSR is
 
 | Component | Voltage | Current (approx.) | Source |
 |-----------|:-------:|:-----------------:|--------|
-| ESP32 (each) | 5.0V (VIN) | ~200mA peak | LM2596S buck |
+| ESP32 (each) | 5.0V (VIN) | ~200mA peak | LM2596S buck (shared 5V rail) |
 | LCD (I²C) | 5.0V | ~50mA (backlit) | ESP32 VIN rail |
 | MPU6050 | 3.3V | ~5mA | ESP32 3.3V pin |
 | TB74 Bill Acceptor | 12V | ~200mA | PSU direct |
@@ -489,13 +506,16 @@ The SSR switches **one side of the AC line** (the Line / phase). When the SSR is
 | SSR Control | 3–32V DC | ~5–20mA | ESP32 GPIO (TBD) |
 | Hopper (AC) | 220 VAC | ~500mA–2A | Switched via SSR |
 
-### 7.3 Why Two LM2596S Modules?
+### 7.3 Why Only One LM2596S Module?
 
-Each ESP32 gets its **own LM2596S** buck converter. This design choice ensures:
+A single LM2596S buck converter powers both ESP32 boards. Here's why:
 
-1. **Isolated power:** If one ESP32 browns out or draws a transient spike, the other is unaffected.
-2. **Adequate current:** An ESP32 with peripherals can draw 300–500mA at 5V. A single LM2596S rated at 3A can handle it, but splitting into two modules provides headroom and thermal relief.
-3. **Independent troubleshooting:** Each board can be powered and tested separately by disconnecting its own LM2596S output.
+1. **Enough current:** The LM2596S is rated at **3A max**. Both ESP32s peak at ~200mA each + LCD at ~50mA = **~450mA total**. That's well within the module's capability.
+2. **Simpler wiring:** One module means fewer connections, fewer failure points, and less clutter in the enclosure.
+3. **5V rail is shared:** Both ESP32s and the LCD share the same 5V rail — their VIN and GND pins are simply wired in parallel (VIN-to-VIN, GND-to-GND).
+4. **Same ground plane:** Because both boards share GND, communication between them (serial/GPIO handshake) doesn't need level shifters or isolation.
+
+> **Note:** The two LM2596S modules you see in the shopping list (qty 2 in `components.md`) are **spares**. You only need to wire in **one** — keep the other as backup in case the first one fails.
 
 ---
 
@@ -509,14 +529,14 @@ Use this checklist before applying power.
 - [ ] **No exposed 220VAC wiring** outside the enclosure
 - [ ] Fuse (5A) installed on 220VAC Line before PSU
 - [ ] PSU earth/ground connected to chassis (if metal enclosure)
-- [ ] Both LM2596S modules adjusted to **5.0V** output (measured with multimeter, no load)
+- [ ] LM2596S output adjusted to **5.0V** (measured with multimeter, no load)
 - [ ] No stray wire strands touching adjacent pins or exposed conductors
 - [ ] ESP32 boards correctly oriented (not reversed or offset in headers)
 
 ### ESP32 #1 (Main Controller) Checks ☐
 
-- [ ] LM2596S #1 OUT+ → ESP32 VIN
-- [ ] LM2596S #1 OUT− → ESP32 GND
+- [ ] LM2596S OUT+ → ESP32 #1 VIN (also spliced to ESP32 #2 VIN)
+- [ ] LM2596S OUT− → ESP32 #1 GND (also spliced to ESP32 #2 GND)
 - [ ] LCD VCC → VIN, GND → GND, SDA → GPIO22, SCL → GPIO21
 - [ ] MPU6050 VCC → 3.3V (NOT VIN!), GND → GND
 - [ ] MPU6050 SDA → GPIO22, SCL → GPIO21
@@ -530,8 +550,8 @@ Use this checklist before applying power.
 
 ### ESP32 #2 (Dispenser Controller) Checks ☐
 
-- [ ] LM2596S #2 OUT+ → ESP32 VIN
-- [ ] LM2596S #2 OUT− → ESP32 GND
+- [ ] LM2596S OUT+ → ESP32 #2 VIN (shared 5V rail with ESP32 #1)
+- [ ] LM2596S OUT− → ESP32 #2 GND (shared GND with ESP32 #1)
 - [ ] Buzzer (+) → GPIO5, Buzzer (−) → GND
 - [ ] SSR control wiring — **CONFIRM AND UPDATE HERE**
 - [ ] SSR Output Terminal 1 → Hopper Wire 1
@@ -541,8 +561,8 @@ Use this checklist before applying power.
 ### Power-On Sequence ☐
 
 - [ ] 1. Do NOT plug in 220VAC yet
-- [ ] 2. Measure LM2596S #1 output voltage at ESP32 #1 VIN pin — **expect +5.0V**
-- [ ] 3. Measure LM2596S #2 output voltage at ESP32 #2 VIN pin — **expect +5.0V**
+- [ ] 2. Measure LM2596S output voltage at ESP32 #1 VIN pin — **expect +5.0V**
+- [ ] 3. Measure LM2596S output voltage at ESP32 #2 VIN pin — **expect +5.0V** (same rail)
 - [ ] 4. Plug in 220VAC
 - [ ] 5. Measure PSU 12V output — **expect ~12V**
 - [ ] 6. Check both ESP32 boards power on (onboard LED blinks / serial output shows)
@@ -563,7 +583,7 @@ Use this checklist before applying power.
 |---------|-------------|-----|
 | No LED, no serial | No 5V at VIN | Measure LM2596S output; adjust trimmer to 5.0V |
 | Board gets hot | VIN voltage > 5.5V | Immediately disconnect; re-adjust LM2596S |
-| Boot loops | Insufficient current | Check LM2596S current rating (should be ≥2A) |
+| Boot loops | Insufficient current | Check LM2596S wiring — ensure both ESP32s share the same 5V rail |
 
 ### 9.2 I²C Issues (LCD / MPU6050)
 
@@ -649,6 +669,7 @@ The following additions are possible without major rewiring:
 
 | Date | Version | Changes |
 |------|:-------:|---------|
+| Jul 2026 | 1.1 | Changed to single LM2596S powering both ESP32s (parallel 5V rail) |
 | Jul 2026 | 1.0 | Initial wiring guide created |
 
 ---

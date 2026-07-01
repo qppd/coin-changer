@@ -17,7 +17,7 @@
 | 4 | **TOP TB74 Bill Acceptor** (bill validator) | 1 | ₱3,000 | **₱3,000** | ⭐5.0 (8) | [Buy Here](https://www.lazada.com.ph/products/pdp-i5309596401-s31663475796.html) |
 | 5 | **ALLAN Universal Coin Slot 1238/1238A** | 1 | ₱550 | **₱550** | ⭐4.92 (811) | [Buy Here](https://www.lazada.com.ph/products/pdp-i1713218179-s7401620412.html) |
 | 6 | **ALLAN Coin Hopper** (for dispensing) | 1 | ₱1,300 | **₱1,300** | ⭐4.66 (83) | [Buy Here](https://www.lazada.com.ph/products/pdp-i535822240-s24290004550.html) |
-| 7 | **LM2596S Buck Converter** (12V → 5V) | 2 | ₱35 | **₱70** | ⭐4.87 (47) | [Buy Here](https://www.lazada.com.ph/products/pdp-i3761886653-s19926607155.html) |
+| 7 | **LM2596S Buck Converter** (12V → 5V) | 1 | ₱35 | **₱35** | ⭐4.87 (47) | [Buy Here](https://www.lazada.com.ph/products/pdp-i3761886653-s19926607155.html) |
 | 8 | **12V 5A SMPS PSU** (ALLAN centralized) | 1 | ₱195 | **₱195** | ⭐4.92 (100) | [Buy Here](https://www.lazada.com.ph/products/pdp-i2298938223-s10430420525.html) |
 | 9 | **Active Buzzer 5V** (2pcs, PowerMav) | 1 | ₱32 | **₱32** | ⭐5.0 (13) | [Buy Here](https://www.lazada.com.ph/products/pdp-i4262918143-s23830169369.html) |
 | 10 | **SSR-25DA Solid State Relay** (25A, 3-32VDC control) | 1 | ₱200 | **₱200** | ⭐4.96 (93) | [Buy Here](https://www.lazada.com.ph/products/pdp-i4409263181-s24806163371.html) |
@@ -32,9 +32,9 @@
 
 | Item | Amount |
 |------|:------:|
-| **Components Subtotal** | **₱6,473** |
+| **Components Subtotal** | **₱6,438** |
 | Most items free shipping | ± ₱0 |
-| **Estimated Grand Total** | **~₱6,500** |
+| **Estimated Grand Total** | **~₱5,900** |
 
 ---
 
@@ -45,6 +45,7 @@
 | **TB74** (cheaper, pulse protocol) | TOP TB74 Pulse | ₱1,950 | ⭐4.9 (41) | [View on Lazada](https://www.lazada.com.ph/catalog/?q=Bill+Acceptor+Top+TB74+Pulse+protocol) |
 | **SSR-25DA** (local, faster shipping) | Parañaque store | ₱188 | — | [View on Lazada](https://www.lazada.com.ph/catalog/?q=SSR+25DA+solid+state+relay+module+single+phase) |
 | **Resistor Kit** (assorted values) | Circuitrocks Kit | ₱75 | ⭐4.91 (32) | [View on Lazada](https://www.lazada.com.ph/products/pdp-i268787131-s382101641.html) |
+| **LM2596S** (extra spare) | Second unit as backup | ₱35 | ⭐4.87 (47) | Same link as above |
 | **ALLAN Bill Acceptor** (full setup) | Allan brand | ₱3,500 | ⭐5.0 (6) | [View on Lazada](https://www.lazada.com.ph/products/pdp-i2298938223-s10430420525.html) |
 
 ---
@@ -68,9 +69,9 @@
 
 | GPIO Pin | Component | Function |
 |:--------:|-----------|----------|
-| VIN | LM2596S #1 OUT+ | 5V Power In |
+| VIN | LM2596S OUT+ (shared with ESP32 #2) | 5V Power In |
 | 3.3V | MPU6050 VCC | 3.3V Out (MPU6050 only) |
-| GND | Common GND | System ground |
+| GND | LM2596S OUT− (shared with ESP32 #2) | System ground |
 | GPIO22 | LCD SDA + MPU6050 SDA | I²C Data (shared bus) |
 | GPIO21 | LCD SCL + MPU6050 SCL | I²C Clock (shared bus) |
 | GPIO19 | Button 1 Signal | Active LOW (INPUT_PULLUP) |
@@ -84,8 +85,8 @@
 
 | GPIO Pin | Component | Function |
 |:--------:|-----------|----------|
-| VIN | LM2596S #2 OUT+ | 5V Power In |
-| GND | Common GND | System ground |
+| VIN | LM2596S OUT+ (shared with ESP32 #1) | 5V Power In |
+| GND | LM2596S OUT− (shared with ESP32 #1) | System ground |
 | GPIO5 | Buzzer (+) | Active HIGH = beep |
 | TBD | SSR Control (+) | Hopper switch (verify SSR specs) |
 | GND | SSR Control (−) | Control ground |
